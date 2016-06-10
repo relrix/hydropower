@@ -1,4 +1,4 @@
-# hydropower
+# Hydropower
 
 Copyright (C) 2016 - Shishir Pokharel
 shishir.pokharel@gmail.com
