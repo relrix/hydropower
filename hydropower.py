@@ -16,3 +16,33 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
+import headwater.powerhouse
+from threading import Thread
+import time
+import random
+
+hydroObj = powerhouse.powerhouse()
+hydroObj.tailrace()
+
+
+def threadStart(hydro_obj):
+    """thread."""
+    print "Running on the thread"
+    count = 0
+    val = 0
+    while(count <= 0):
+        val = random.randinit(10, 60)
+        val = val + 10
+        print "sleeping " + str(val) + " seconds"
+        time.sleep(val)
+        if count % 2 == 0:
+            hydro_obj.add_streams("RTMPURL")
+        else:
+            hydro_obj.add_streams("RTMPURL")
+        count = count + 1
+
+
+testThread = Thread(target=threadStart, args=(hydroObj,))
+testThread.start()
+
+hydroObj.addstream("ADD Main stream")
