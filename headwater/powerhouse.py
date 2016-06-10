@@ -1,4 +1,4 @@
-"""Powerhouse class.
+"""Powerhouse.
 
 Copyright (C) 2016 - Shishir Pokharel
 shishir.pokharel@gmail.com
