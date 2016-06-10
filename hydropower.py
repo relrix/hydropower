@@ -31,7 +31,7 @@ def threadStart(hydro_obj):
     count = 0
     val = 0
     while(count <= 0):
-        val = random.randinit(10, 60)
+        val = random.randint(10, 60)
         val = val + 10
         print "sleeping " + str(val) + " seconds"
         time.sleep(val)
@@ -45,4 +45,4 @@ def threadStart(hydro_obj):
 testThread = Thread(target=threadStart, args=(hydroObj,))
 testThread.start()
 
-hydroObj.addstream("ADD Main stream")
+hydroObj.add_streams("ADD Main stream")

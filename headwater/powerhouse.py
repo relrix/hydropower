@@ -19,6 +19,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import gi
 import sys
+import impoundment
 from threading import Thread
 from controlgate import stream
 from gi.repository import GObject
@@ -50,15 +51,12 @@ class powerhouse():
         self.streams = {}
         self.streams["sink_0"] = {}
         self.sink_count = 0
+        self.impoundmentObj = impoundment()
 
     def tailrace(self):
         """Element to drain out the stream to rtmpsink."""
         self.videomix = Gst.ElementFactory.make("videomixer", None)
         # self.videomix = Gst.ElementFactory.make("compositor", None)
-        # self.videomix.set_property("sink_1::xpos",480)
-        # self.videomix.set_property("sink_1::ypos",20)
-        # self.videomix.set_property("sink_2::xpos",480)
-        # self.videomix.set_property("sink_2::ypos",120)
         self.videomix.connect('pad-added', self.on_pad_added)
         self.videomix.connect('pad-removed', self.on_pad_removed)
         self.pipeline.add(self.videomix)
@@ -107,7 +105,7 @@ class powerhouse():
         """create dictionary of created Objects."""
         if mainWindow:
             videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, tile=False)
+            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmuxer, tile=False)
             self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
             self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
             videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
@@ -124,27 +122,14 @@ class powerhouse():
 
     def on_pad_added(self, element, pad):
         """Callback to link a/v sink to decoder source."""
-        print "GOT SINK " + pad.get_name()
-        if pad.get_name() == "sink_1":
-            pad.set_property("xpos", 480)
-            pad.set_property("ypos", 20)
-
-        if pad.get_name() == "sink_2":
-            pad.set_property("xpos", 480)
-            pad.set_property("ypos", 120)
-
-        if pad.get_name() == "sink_3":
-            pad.set_property("xpos", 480)
-            pad.set_property("ypos", 220)
-
-        if pad.get_name() == "sink_4":
-            pad.set_property("xpos", 20)
-            pad.set_property("ypos", 20)
+        sink = self.impoundmentObj.get_sink_location(pad.get_name())
+        pad.set_property("xpos", sink["xpos"])
+        pad.set_property("ypos", sink["ypos"])
 
     def addVideoTiles(self, rtmpsrc):
         """stopStream and add new video Tiles."""
         # self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.sink_probe_event_cb, rtmpsrc)
-        t = Thread(target=self.sink_probe_event_cb,args=(rtmpsrc,))
+        t = Thread(target=self.sink_probe_event_cb, args=(rtmpsrc,))
         t.start()
         # self.streams["sink_" + str(self.sink_count)] = {}
         # videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
@@ -173,7 +158,7 @@ class powerhouse():
         """peobe."""
         self.streams["sink_" + str(self.sink_count)] = {}
         videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, tile=True)
+        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmuxer, tile=True)
         self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
         self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
         videomix_pad.set_active(True)

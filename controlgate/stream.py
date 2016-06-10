@@ -20,6 +20,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from gi.repository import GObject
 from gi.repository import Gst
+from audiostream import get_bin_pad
+import gi
+gi.require_version('Gst', '1.0')
 GObject.threads_init()
 Gst.init(None)
 
@@ -27,11 +30,12 @@ Gst.init(None)
 class InputBin():
     """InputBin."""
 
-    def __init__(self, pipeline, mixer_pad, rtmp_location, tile):
+    def __init__(self, pipeline, mixer_pad, rtmp_location, flvmuxer, tile):
         """init."""
         self.pipeline = pipeline
         self.mixer_pad = mixer_pad
         self.rtmp_location = rtmp_location
+        self.flvmuxer = flvmuxer
         self.tile = tile
         self.CustomBin = Gst.Bin.new(None)
 
@@ -54,7 +58,7 @@ class InputBin():
 
         self.videosrc.set_property("location", self.rtmp_location)
         # self.videosrc.set_property("do-timestamp", True)
-        self.videosrc.set_property("blocksize",1024)
+        self.videosrc.set_property("blocksize", 1024)
         self.decodebin.set_property("message-forward", "true")
         self.decodebin.connect('pad-added', self.on_pad_added)
         self.videoscale.set_property("method", "bilinear")
@@ -95,13 +99,12 @@ class InputBin():
         string = pad.query_caps(None).to_string()
 
         if string.startswith('video/'):
-            self.decode_video_src_pad = pad
-            self.decode_video_src_pad.link(self.decodevidqueue.get_static_pad('sink'))
+            pad.link(self.decodevidqueue.get_static_pad('sink'))
         elif string.startswith('audio/') and self.tile:
-            # ignore audio for now
-            return
-            # self.decode_audio_src_pad = pad
-            # self.decode_audio_src_pad.link(self.audioqueue.get_static_pad('sink'))
+            audiobin, audqueuesink, audioelement = get_bin_pad(self.pipeline, self.decoder, self.tile)
+            pad.link(audqueuesink)
+            if self.tile:
+                audioelement.link(self.flvmuxer)
 
     def elements_changestate(self):
         """Change state to playing."""
@@ -126,11 +129,10 @@ def get_video_caps(tile=True):
         return "video/x-raw,framerate=12/1,format=I420,width=146,height=90"
 
 
-def get_stream_for_mix(pipeline=None, mixer_pad=None, rtmpsrc=None, tile=True):
+def get_stream_for_mix(pipeline=None, mixer_pad=None, rtmpsrc=None, flvmuxer=None, tile=True):
     """Get required param to create a bin."""
-    if not rtmpsrc or not pipeline or not mixer_pad:
+    if not rtmpsrc or not pipeline or not mixer_pad or not flvmuxer:
         raise Exception('Mandotarty fields are missing')
-    else:
-        bin = InputBin(pipeline, mixer_pad, rtmpsrc, tile)
-        custom_bin, pad = bin.get_ghost_pad()
-        return custom_bin, pad
+    bin = InputBin(pipeline, mixer_pad, rtmpsrc, flvmuxer, tile)
+    custom_bin, pad = bin.get_ghost_pad()
+    return custom_bin, pad
