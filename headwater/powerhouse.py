@@ -105,8 +105,9 @@ class powerhouse():
         """create dictionary of created Objects."""
         if mainWindow:
             videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
+            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
             # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
+            self.streams["sink_" + str(self.sink_count)]["audioqueue"] .link(self.flvmux)
             self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
             videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
             self.sink_count = self.sink_count + 1
@@ -124,7 +125,6 @@ class powerhouse():
         """Callback to link a/v sink to decoder source."""
         if(pad.get_name() == "sink_0"):
             return
-        print "am i here?"
         sink = self.impoundmentObj.get_sink_location(pad.get_name())
         pad.set_property("xpos", sink["xpos"])
         pad.set_property("ypos", sink["ypos"])
@@ -161,7 +161,7 @@ class powerhouse():
         """probe."""
         self.streams["sink_" + str(self.sink_count)] = {}
         videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
+        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
         # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
         self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
         videomix_pad.set_active(True)

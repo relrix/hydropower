@@ -95,7 +95,7 @@ class avbin():
         if self.tile:
             ghostPad.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
 
-        return self.CustomBin, ghostPad
+        return self.CustomBin, ghostPad, self.audqueuesrc, self.audioelement
 
     def on_pad_added(self, element, pad):
         """Callback to link a/v sink to decoder source."""
@@ -106,7 +106,7 @@ class avbin():
         elif string.startswith('audio/') and self.tile:
             pad.link(self.audqueuesink)
 
-            #if self.tile:
+            # if self.tile:
             # audqueuesrc.link(self.flvmuxer.get_request_pad())
 
     def elements_changestate(self):
@@ -137,5 +137,5 @@ def get_stream_for_mix(pipeline=None, mixer_pad=None, rtmpsrc=None, flvmuxer=Non
     if not rtmpsrc or not pipeline or not mixer_pad or not flvmuxer:
         raise Exception('Mandotarty fields are missing')
     bin = avbin(pipeline, mixer_pad, rtmpsrc, flvmuxer, tile)
-    custom_bin, pad = bin.get_ghost_pad()
-    return custom_bin, pad
+    custom_bin, pad, audqueuesrc, audioelement = bin.get_ghost_pad()
+    return custom_bin, pad, audqueuesrc, audioelement
