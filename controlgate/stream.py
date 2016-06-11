@@ -27,8 +27,8 @@ GObject.threads_init()
 Gst.init(None)
 
 
-class InputBin():
-    """InputBin."""
+class avbin():
+    """audio video bin."""
 
     def __init__(self, pipeline, mixer_pad, rtmp_location, flvmuxer, tile):
         """init."""
@@ -82,6 +82,9 @@ class InputBin():
         ghostPad = Gst.GhostPad.new(None, Connectpad)
         self.CustomBin.add_pad(ghostPad)
 
+        self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
+
+        self.pipeline.add(self.CustomBin)
         clock = self.pipeline.get_clock()
         self.CustomBin.set_base_time(self.pipeline.get_base_time())
         self.CustomBin.set_clock(clock)
@@ -101,9 +104,9 @@ class InputBin():
         if string.startswith('video/'):
             pad.link(self.decodevidqueue.get_static_pad('sink'))
         elif string.startswith('audio/') and self.tile:
-            audiobin, audqueuesink, audqueuesrc = get_bin_pad(self.pipeline, self.decodebin, self.tile)
-            pad.link(audqueuesink)
-            # if self.tile:
+            pad.link(self.audqueuesink)
+
+            #if self.tile:
             # audqueuesrc.link(self.flvmuxer.get_request_pad())
 
     def elements_changestate(self):
@@ -133,6 +136,6 @@ def get_stream_for_mix(pipeline=None, mixer_pad=None, rtmpsrc=None, flvmuxer=Non
     """Get required param to create a bin."""
     if not rtmpsrc or not pipeline or not mixer_pad or not flvmuxer:
         raise Exception('Mandotarty fields are missing')
-    bin = InputBin(pipeline, mixer_pad, rtmpsrc, flvmuxer, tile)
+    bin = avbin(pipeline, mixer_pad, rtmpsrc, flvmuxer, tile)
     custom_bin, pad = bin.get_ghost_pad()
     return custom_bin, pad

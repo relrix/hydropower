@@ -106,7 +106,7 @@ class powerhouse():
         if mainWindow:
             videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
             self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
-            self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
+            # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
             self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
             videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
             self.sink_count = self.sink_count + 1
@@ -159,7 +159,7 @@ class powerhouse():
         self.streams["sink_" + str(self.sink_count)] = {}
         videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
         self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
-        self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
+        # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
         self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
         videomix_pad.set_active(True)
         self.streams["sink_" + str(self.sink_count)]["bin"].set_state(Gst.State.PLAYING)
