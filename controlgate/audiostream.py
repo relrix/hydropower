@@ -38,13 +38,13 @@ class audiobin():
 
     def get_audio_ghost_pad(self):
         """create Element Factory."""
-        self.decodeaudqueue = Gst.ElementFactory.make("queue", "audioqueue")
-        self.audioconvert = Gst.ElementFactory.make("audioconvert", "audioconvert")
-        self.audioresample = Gst.ElementFactory.make("audioresample", "audioresample")
-        self.audiorate = Gst.ElementFactory.make("audiorate", "audiorate")
-        self.audiocaps = Gst.ElementFactory.make("capsfilter", "acaps")
-        self.aacencode = Gst.ElementFactory.make("avenc_aac", "aacencode")
-        self.audiosinkqueue = Gst.ElementFactory.make("queue", "aqueue")
+        self.decodeaudqueue = Gst.ElementFactory.make("queue", None)
+        self.audioconvert = Gst.ElementFactory.make("audioconvert", None)
+        self.audioresample = Gst.ElementFactory.make("audioresample", None)
+        self.audiorate = Gst.ElementFactory.make("audiorate", None)
+        self.audiocaps = Gst.ElementFactory.make("capsfilter", None)
+        self.aacencode = Gst.ElementFactory.make("avenc_aac", None)
+        self.audiosinkqueue = Gst.ElementFactory.make("queue", None)
 
         if not self.decodeaudqueue or not self.audioconvert or not self.audioresample or not self.audiorate or not self.audiocaps \
                 or not self.aacencode or not self.audiosinkqueue:
@@ -104,5 +104,5 @@ def get_bin_pad(pipeline=None, demuxer=None, tile=True):
     if not pipeline or not demuxer:
         raise Exception('Mandotarty fields are missing fro audio bin')
     bin = audiobin(pipeline, demuxer, tile)
-    audio_bin, pad, ghostpad = bin.get_audio_ghost_pad()
-    return audio_bin, pad, ghostpad
+    audio_bin, ghostpadsink, ghostpadsrc = bin.get_audio_ghost_pad()
+    return audio_bin, ghostpadsink, ghostpadsrc
