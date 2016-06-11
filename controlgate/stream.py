@@ -20,7 +20,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from gi.repository import GObject
 from gi.repository import Gst
-# from audiostream import get_bin_pad
+from audiostream import get_bin_pad
 import gi
 gi.require_version('Gst', '1.0')
 GObject.threads_init()
@@ -82,9 +82,9 @@ class avbin():
         ghostPad = Gst.GhostPad.new(None, Connectpad)
         self.CustomBin.add_pad(ghostPad)
 
-        # self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
-
+        self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
         self.pipeline.add(self.CustomBin)
+
         clock = self.pipeline.get_clock()
         self.CustomBin.set_base_time(self.pipeline.get_base_time())
         self.CustomBin.set_clock(clock)
@@ -104,10 +104,9 @@ class avbin():
         if string.startswith('video/'):
             pad.link(self.decodevidqueue.get_static_pad('sink'))
         elif string.startswith('audio/') and self.tile:
-            # pad.link(self.audqueuesink)
-            return
+            pad.link(self.audqueuesink)
 
-            # if self.tile:
+            #if self.tile:
             # audqueuesrc.link(self.flvmuxer.get_request_pad())
 
     def elements_changestate(self):
