@@ -122,6 +122,9 @@ class powerhouse():
 
     def on_pad_added(self, element, pad):
         """Callback to link a/v sink to decoder source."""
+        if(pad.get_name() == "sink_0"):
+            return
+        print "am i here?"
         sink = self.impoundmentObj.get_sink_location(pad.get_name())
         pad.set_property("xpos", sink["xpos"])
         pad.set_property("ypos", sink["ypos"])
@@ -155,7 +158,7 @@ class powerhouse():
         return Gst.PadProbeReturn.OK
 
     def sink_probe_event_cb(self, user_data):
-        """peobe."""
+        """probe."""
         self.streams["sink_" + str(self.sink_count)] = {}
         videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
         self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)

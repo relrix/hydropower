@@ -20,7 +20,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from gi.repository import GObject
 from gi.repository import Gst
-from audiostream import get_bin_pad
+#from audiostream import get_bin_pad
 import gi
 gi.require_version('Gst', '1.0')
 GObject.threads_init()
@@ -82,7 +82,7 @@ class avbin():
         ghostPad = Gst.GhostPad.new(None, Connectpad)
         self.CustomBin.add_pad(ghostPad)
 
-        self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
+        # self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
 
         self.pipeline.add(self.CustomBin)
         clock = self.pipeline.get_clock()
