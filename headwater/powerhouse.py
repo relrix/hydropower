@@ -71,6 +71,7 @@ class powerhouse():
 
         self.flvmux = Gst.ElementFactory.make("flvmux", None)
         self.flvmux.set_property("streamable", True)
+        self.flvmux.connect('pad-added', self.on_pad_added_muxer)
         self.pipeline.add(self.flvmux)
 
         self.rtmpsink = Gst.ElementFactory.make("rtmpsink", None)
@@ -107,7 +108,7 @@ class powerhouse():
             videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
             self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
             # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
-            self.streams["sink_" + str(self.sink_count)]["audioqueue"] .link(self.flvmux)
+            self.streams["sink_" + str(self.sink_count)]["audioqueue"].link(self.flvmux)
             self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
             videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
             self.sink_count = self.sink_count + 1
@@ -115,6 +116,14 @@ class powerhouse():
         else:
             self.addVideoTiles(rtmpsrc)
             return
+
+    def on_pad_added_muxer(self, element, pad):
+        """call back to linke audio."""
+        string = pad.query_caps(None).to_string()
+
+        if string.startswith('audio/'):
+            print "Adding audio"
+            pad.link(self.streams["sink_0"]["audioqsrcpad"])
 
     def on_pad_removed(self, element, pad):
         """pad removed."""
