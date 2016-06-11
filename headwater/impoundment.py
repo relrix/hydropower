@@ -84,10 +84,10 @@ class impoundment():
             return True
 
 
-def init():
-    """init."""
-    impoundmentObj = impoundment()
-    print impoundmentObj.get_all_sinks()
+# def init():
+#     """init."""
+#    impoundmentObj = impoundment()
+#    print impoundmentObj.get_all_sinks()
     # return impoundmentObj
     # obj.get_sink_location("sink_4")
 #     sinks = obj.get_all_sinks()
@@ -97,4 +97,4 @@ def init():
 #     for c in collections.OrderedDict(sorted(sinks.items())):
 #         print c, sinks[c]
 #
-init()
+# init()

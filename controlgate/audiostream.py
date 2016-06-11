@@ -69,9 +69,12 @@ class audiobin():
 
         """create a ghost pad for audiobin."""
 
-        Connectpad = self.audiosinkqueue.get_static_pad("src")
-        ghostPad = Gst.GhostPad.new(None, Connectpad)
-        self.AudioBin.add_pad(ghostPad)
+        Connectpadsink = self.decodeaudqueue.get_static_pad("sink")
+        Connectpadsrc = self.audiosinkqueue.get_static_pad("src")
+        ghostPadsink = Gst.GhostPad.new(None, Connectpadsink)
+        ghostPadsrc = Gst.GhostPad.new(None, Connectpadsrc)
+        self.AudioBin.add_pad(ghostPadsink)
+        self.AudioBin.add_pad(ghostPadsrc)
 
         clock = self.pipeline.get_clock()
         self.AudioBin.set_base_time(self.pipeline.get_base_time())
@@ -81,9 +84,9 @@ class audiobin():
         # else:
         #    self.CustomBin.set_state(Gst.State.PLAYING)
         if self.tile:
-            ghostPad.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
+            ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
 
-        return self.AudioBin, self.decodeaudqueue.get_static_pad("sink"), self.audiosinkqueue
+        return self.AudioBin, ghostPadsink, ghostPadsrc
 
     def buff_event(self, pad, info, user_data):
         """block  buffer and change PTS / DTS."""
@@ -101,5 +104,5 @@ def get_bin_pad(pipeline=None, demuxer=None, tile=True):
     if not pipeline or not demuxer:
         raise Exception('Mandotarty fields are missing fro audio bin')
     bin = audiobin(pipeline, demuxer, tile)
-    audio_bin, pad = bin.get_audio_ghost_pad()
-    return audio_bin, pad
+    audio_bin, pad, ghostpad = bin.get_audio_ghost_pad()
+    return audio_bin, pad, ghostpad

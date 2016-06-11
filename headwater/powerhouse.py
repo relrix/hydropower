@@ -19,7 +19,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import gi
 import sys
-import impoundment
+from impoundment import impoundment
 from threading import Thread
 from controlgate import stream
 from gi.repository import GObject
@@ -105,7 +105,7 @@ class powerhouse():
         """create dictionary of created Objects."""
         if mainWindow:
             videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmuxer, tile=False)
+            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
             self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
             self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
             videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
@@ -158,7 +158,7 @@ class powerhouse():
         """peobe."""
         self.streams["sink_" + str(self.sink_count)] = {}
         videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmuxer, tile=True)
+        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
         self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
         self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
         videomix_pad.set_active(True)

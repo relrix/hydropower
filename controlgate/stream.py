@@ -101,10 +101,10 @@ class InputBin():
         if string.startswith('video/'):
             pad.link(self.decodevidqueue.get_static_pad('sink'))
         elif string.startswith('audio/') and self.tile:
-            audiobin, audqueuesink, audioelement = get_bin_pad(self.pipeline, self.decoder, self.tile)
+            audiobin, audqueuesink, audqueuesrc = get_bin_pad(self.pipeline, self.decodebin, self.tile)
             pad.link(audqueuesink)
             if self.tile:
-                audioelement.link(self.flvmuxer)
+                audqueuesrc.link(self.flvmuxer.get_request_pad("sink"))
 
     def elements_changestate(self):
         """Change state to playing."""
