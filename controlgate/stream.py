@@ -20,7 +20,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from gi.repository import GObject
 from gi.repository import Gst
-#from audiostream import get_bin_pad
+# from audiostream import get_bin_pad
 import gi
 gi.require_version('Gst', '1.0')
 GObject.threads_init()
@@ -104,9 +104,10 @@ class avbin():
         if string.startswith('video/'):
             pad.link(self.decodevidqueue.get_static_pad('sink'))
         elif string.startswith('audio/') and self.tile:
-            pad.link(self.audqueuesink)
+            # pad.link(self.audqueuesink)
+            return
 
-            #if self.tile:
+            # if self.tile:
             # audqueuesrc.link(self.flvmuxer.get_request_pad())
 
     def elements_changestate(self):

@@ -64,7 +64,6 @@ class impoundment():
                 self.sinks["sink_" + str(i)]["xpos"] = self.sinks["sink_" + str(i - 1)]["xpos"] + 160
                 self.sinks["sink_" + str(i)]["ypos"] = self.sinks["sink_" + str(i - 1)]["ypos"]
                 self.sinks["sink_" + str(i)]["linked"] = False
-                print i
 
     def get_all_sinks(self):
         """get all sinks."""
