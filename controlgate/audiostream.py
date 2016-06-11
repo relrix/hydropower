@@ -81,13 +81,13 @@ class audiobin():
         self.AudioBin.set_base_time(self.pipeline.get_base_time())
         self.AudioBin.set_clock(clock)
         if not self.tile:
-            self.CustomBin.set_state(Gst.State.READY)
+            self.AudioBin.set_state(Gst.State.READY)
         else:
-            self.CustomBin.set_state(Gst.State.PLAYING)
+            self.AudioBin.set_state(Gst.State.PLAYING)
         if self.tile:
             ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
 
-        return self.AudioBin, ghostPadsink, ghostPadsrc, self.audsinkelement
+        return self.AudioBin, ghostPadsink, ghostPadsrc, self.audiosinkqueue
 
     def buff_event(self, pad, info, user_data):
         """block  buffer and change PTS / DTS."""
