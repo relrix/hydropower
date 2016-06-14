@@ -53,13 +53,17 @@ class audiobin():
         """set properties."""
         self.audiocaps.set_property("caps", Gst.Caps.from_string("audio/x-raw, rate=44100"))
         self.aacencode.set_property("compliance", -2)
+        self.aacencode.set_property("bitrate",64000)
+        self.aacencode.set_property("perfect-timestamp",True)
+        self.aacencode.set_property("hard-resync",True)
+
 
         """add elements to audiobin."""
         for element in (self.decodeaudqueue, self.audioconvert, self.audioresample, self.audiorate, self.audiocaps, self.aacencode, self.audiosinkqueue):
             self.AudioBin.add(element)
 
         """link elements to audiobin."""
-        self.demuxer.link(self.decodeaudqueue)
+        #self.demuxer.link(self.decodeaudqueue)
         self.decodeaudqueue.link(self.audioconvert)
         self.audioconvert.link(self.audioresample)
         self.audioresample.link(self.audiorate)
@@ -80,10 +84,10 @@ class audiobin():
         clock = self.pipeline.get_clock()
         self.AudioBin.set_base_time(self.pipeline.get_base_time())
         self.AudioBin.set_clock(clock)
-        if not self.tile:
-            self.AudioBin.set_state(Gst.State.READY)
-        else:
-            self.AudioBin.set_state(Gst.State.PLAYING)
+        #if not self.tile:
+        #    self.AudioBin.set_state(Gst.State.READY)
+        #else:
+        #    self.AudioBin.set_state(Gst.State.PLAYING)
         if self.tile:
             ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
 
@@ -92,7 +96,7 @@ class audiobin():
     def buff_event(self, pad, info, user_data):
         """block  buffer and change PTS / DTS."""
         buf = info.get_buffer()
-        # print("before BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
+        print("before BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
         clock = Gst.SystemClock.obtain()
         buf.pts = clock.get_time() - self.pipeline.get_base_time() + buf.duration
         buf.dts = clock.get_time() - self.pipeline.get_base_time() - buf.duration

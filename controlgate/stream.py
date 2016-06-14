@@ -38,6 +38,7 @@ class avbin():
         self.flvmuxer = flvmuxer
         self.tile = tile
         self.CustomBin = Gst.Bin.new(None)
+        self.decodercustomBin = Gst.Bin.new(None)
 
     def get_ghost_pad(self):
         """create Element Factory."""
@@ -58,7 +59,7 @@ class avbin():
 
         self.videosrc.set_property("location", self.rtmp_location)
         # self.videosrc.set_property("do-timestamp", True)
-        self.videosrc.set_property("blocksize", 1024)
+        # self.videosrc.set_property("blocksize", 1024)
         self.decodebin.set_property("message-forward", "true")
         self.decodebin.connect('pad-added', self.on_pad_added)
         self.videoscale.set_property("method", "bilinear")
@@ -66,13 +67,16 @@ class avbin():
 
         """add elements to CustomBin."""
 
-        for element in (self.videosrc, self.decodebin, self.decodevidqueue, self.videoscale, self.videorate, self.videocaps, self.videoconvert, self.videosinkqueue):
+        for element in (self.decodevidqueue, self.videoscale, self.videorate, self.videocaps, self.videoconvert, self.videosinkqueue):
             self.CustomBin.add(element)
 
+        self.decodercustomBin.add(self.videosrc)
+        self.decodercustomBin.add(self.decodebin)
         """link elements to CustomBin."""
 
         self.videosrc.link(self.decodebin)
         self.decodebin.link(self.decodevidqueue)
+
         self.decodevidqueue.link(self.videoscale)
         self.videoscale.link(self.videorate)
         self.videorate.link(self.videocaps)
@@ -81,17 +85,30 @@ class avbin():
         Connectpad = self.videosinkqueue.get_static_pad("src")
         ghostPad = Gst.GhostPad.new(None, Connectpad)
         self.CustomBin.add_pad(ghostPad)
+        ConnectpadSink = self.decodevidqueue.get_static_pad('sink')
+        self.ghostPad1 = Gst.GhostPad.new(None, ConnectpadSink)
+        self.CustomBin.add_pad(self.ghostPad1)
 
         self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
+        #self.decodebin.link(self.audiobin)
+        self.pipeline.add(self.decodercustomBin)
         self.pipeline.add(self.CustomBin)
 
         clock = self.pipeline.get_clock()
         self.CustomBin.set_base_time(self.pipeline.get_base_time())
         self.CustomBin.set_clock(clock)
-        if not self.tile:
-            self.CustomBin.set_state(Gst.State.READY)
-        # else:
-        #    self.CustomBin.set_state(Gst.State.PLAYING)
+        self.decodercustomBin.set_base_time(self.pipeline.get_base_time())
+        self.decodercustomBin.set_clock(clock)
+
+        #if not self.tile:
+            #self.CustomBin.set_state(Gst.State.READY)
+            #self.decodercustomBin.set_state(Gst.State.READY)
+            #self.audiobin.set_state(Gst.State.READY)
+        if self.tile:
+           self.CustomBin.set_state(Gst.State.PLAYING)
+           self.decodercustomBin.set_state(Gst.State.PLAYING)
+           self.audiobin.set_state(Gst.State.PLAYING)
+
         if self.tile:
             ghostPad.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
 
@@ -102,9 +119,18 @@ class avbin():
         string = pad.query_caps(None).to_string()
 
         if string.startswith('video/'):
-            pad.link(self.decodevidqueue.get_static_pad('sink'))
-        elif string.startswith('audio/') and self.tile:
-            pad.link(self.audqueuesink)
+            ghostPad = Gst.GhostPad.new(None, pad)
+            ghostPad.set_active(True)
+            self.decodercustomBin.add_pad(ghostPad)
+            ghostPad.link(self.ghostPad1)
+
+        elif string.startswith('audio/') and not self.tile:
+            print "linking audio with decoder"
+            ghostPad = Gst.GhostPad.new(None, pad)
+            ghostPad.set_active(True)
+            self.decodercustomBin.add_pad(ghostPad)
+            state = ghostPad.link(self.audqueuesink)
+            print state
 
             # if self.tile:
             # audqueuesrc.link(self.flvmuxer.get_request_pad())

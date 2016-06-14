@@ -33,7 +33,7 @@ Gst.init(None)
 
 Gst.debug_set_active(True)
 Gst.debug_set_default_threshold(3)
-Gst.debug_set_threshold_for_name("videomixer", 9)
+Gst.debug_set_threshold_for_name("flvmux", 9)
 # Gst.debug_set_threshold_for_name("rtmpsrc", 9)
 
 
@@ -107,9 +107,11 @@ class powerhouse():
         if mainWindow:
             videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
             self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
-            # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
-            self.streams["sink_" + str(self.sink_count)]["audioqueue"].link(self.flvmux)
+            #self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
             self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
+            tempPad = self.flvmux.get_request_pad("audio")
+            state = self.streams["sink_0"]["audioqsrcpad"].link(tempPad)
+            print "Flv pad link state " + str (state)
             videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
             self.sink_count = self.sink_count + 1
             self.start_genetrator()
@@ -120,10 +122,11 @@ class powerhouse():
     def on_pad_added_muxer(self, element, pad):
         """call back to linke audio."""
         string = pad.query_caps(None).to_string()
+        print pad.get_name()
 
         if string.startswith('audio/'):
-            print "Adding audio"
-            pad.link(self.streams["sink_0"]["audioqsrcpad"])
+            print "Adding audio muxer"
+            #self.streams["sink_0"]["audioqsrcpad"].link(pad)
 
     def on_pad_removed(self, element, pad):
         """pad removed."""
