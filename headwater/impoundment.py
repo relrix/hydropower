@@ -55,14 +55,14 @@ class impoundment():
             elif i == 6:
                 self.sinks["sink_" + str(i)]["xpos"] = self.sinks["sink_" + str(i - 1)]["xpos"]
                 self.sinks["sink_" + str(i)]["ypos"] = self.sinks["sink_" + str(i - 1)]["ypos"] + 100
-                self.sinks["sink_" + str(i)]["linked"] = 0
+                self.sinks["sink_" + str(i)]["linked"] = False
             elif i == 7:
-                self.sinks["sink_" + str(i)]["xpos"] = 200
-                self.sinks["sink_" + str(i)]["ypos"] = 260
+                self.sinks["sink_" + str(i)]["xpos"] = self.sinks["sink_" + str(i - 1)]["xpos"]
+                self.sinks["sink_" + str(i)]["ypos"] = self.sinks["sink_" + str(i - 1)]["ypos"] + 100
                 self.sinks["sink_" + str(i)]["linked"] = False
             elif i == 8:
-                self.sinks["sink_" + str(i)]["xpos"] = self.sinks["sink_" + str(i - 1)]["xpos"] + 160
-                self.sinks["sink_" + str(i)]["ypos"] = self.sinks["sink_" + str(i - 1)]["ypos"]
+                self.sinks["sink_" + str(i)]["xpos"] = 300
+                self.sinks["sink_" + str(i)]["ypos"] = 260
                 self.sinks["sink_" + str(i)]["linked"] = False
 
     def get_all_sinks(self):
@@ -81,19 +81,3 @@ class impoundment():
         else:
             self.sinks[sink_name]["linked"] = state
             return True
-
-
-# def init():
-#     """init."""
-#    impoundmentObj = impoundment()
-#    print impoundmentObj.get_all_sinks()
-    # return impoundmentObj
-    # obj.get_sink_location("sink_4")
-#     sinks = obj.get_all_sinks()
-#     for c in collections.OrderedDict(sorted(sinks.items())):
-#         print c, sinks[c]
-#     obj.set_sink("sink_4", False)
-#     for c in collections.OrderedDict(sorted(sinks.items())):
-#         print c, sinks[c]
-#
-# init()
