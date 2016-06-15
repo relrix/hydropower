@@ -88,19 +88,60 @@ class audiobin():
         #    self.AudioBin.set_state(Gst.State.READY)
         #else:
         #    self.AudioBin.set_state(Gst.State.PLAYING)
-        if self.tile:
-            ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
+        ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
+        #ghostPadsrc.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.eos_event, None)
+
+        ghostPadsink.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.test_cb, None)
 
         return self.AudioBin, ghostPadsink, ghostPadsrc, self.audiosinkqueue
+
+    def eos_event(self, pad, info, user_data):
+        EventType = info.get_event().type
+        print str(EventType) + "  ____AUDIO____"
+        if(EventType == Gst.EventType.EOS):
+            print("End-Of-Stream reached. AUDIO")
+            #self.AudioBin.set_state(Gst.State.NULL)
+            #if(pad.is_linked):
+            #    pad.unlink()
+            return Gst.PadProbeReturn.DROP
+        return Gst.PadProbeReturn.OK
+
+
+
+
+    def test_cb(self, pad, info, user_data):
+        EventType = info.get_event().type
+        if(EventType == Gst.EventType.SEGMENT):
+            newSegment = Gst.Segment.new()
+            newSegment.init(Gst.Format.TIME)
+            newSegment.rate = 1.0
+            newSegment.format = 3
+            clock = Gst.SystemClock.obtain()
+            newSegment.offset_running_time(Gst.Format.TIME,clock.get_time() - self.pipeline.get_base_time())
+            audioconvert = self.audioconvert.get_static_pad("sink");
+            audioconvert.send_event(Gst.Event.new_segment(newSegment));
+            return Gst.PadProbeReturn.DROP
+        return Gst.PadProbeReturn.OK
+
+
 
     def buff_event(self, pad, info, user_data):
         """block  buffer and change PTS / DTS."""
         buf = info.get_buffer()
-        print("before BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
         clock = Gst.SystemClock.obtain()
-        buf.pts = clock.get_time() - self.pipeline.get_base_time() + buf.duration
-        buf.dts = clock.get_time() - self.pipeline.get_base_time() - buf.duration
-        # print("after BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
+        #print("before BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
+        #print("pipeline base time %f current clock %f " %(self.pipeline.get_base_time(),clock.get_time()))
+        #print("offset %f  offset end %f " %(buf.offset,buf.offset_end))
+        running_time = clock.get_time() - self.pipeline.get_base_time()
+        #print ("PIPELINE RUNNING TINE %f start time %f"%(running_time,self.pipeline.get_start_time()))
+        #if(buf.pts < 1):
+        #    buf.pts = self.pipeline.get_base_time() + buf.duration
+    #        buf.dts = self.pipeline.get_base_time()  + buf.duration
+    #    else:
+    #        buf.pts = clock.get_time() - self.pipeline.get_base_time()
+    #        buf.dts = clock.get_time() -self.pipeline.get_base_time()
+
+        #print("after BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
         return Gst.PadProbeReturn.OK
 
 

@@ -33,7 +33,7 @@ Gst.init(None)
 
 Gst.debug_set_active(True)
 Gst.debug_set_default_threshold(3)
-Gst.debug_set_threshold_for_name("flvmux", 9)
+#Gst.debug_set_threshold_for_name("videomixer", 6)
 # Gst.debug_set_threshold_for_name("rtmpsrc", 9)
 
 
@@ -99,6 +99,8 @@ class powerhouse():
 
     def start_genetrator(self):
         """start the pipeline."""
+        clock = Gst.SystemClock.obtain()
+        self.pipeline.set_base_time(clock.get_time())
         self.pipeline.set_state(Gst.State.PLAYING)
         self.main_loop.run()
 
@@ -112,7 +114,7 @@ class powerhouse():
             tempPad = self.flvmux.get_request_pad("audio")
             state = self.streams["sink_0"]["audioqsrcpad"].link(tempPad)
             print "Flv pad link state " + str (state)
-            videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
+            #videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
             self.sink_count = self.sink_count + 1
             self.start_genetrator()
         else:
@@ -173,12 +175,12 @@ class powerhouse():
         """probe."""
         self.streams["sink_" + str(self.sink_count)] = {}
         videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
+        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixerelement = self.videomix, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
         # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
         self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
         videomix_pad.set_active(True)
         self.streams["sink_" + str(self.sink_count)]["bin"].set_state(Gst.State.PLAYING)
-        videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
+        #videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
         self.sink_count = self.sink_count + 1
     #
     #     print "BLOCKING ENds"

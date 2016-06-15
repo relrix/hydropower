@@ -57,8 +57,8 @@ class impoundment():
                 self.sinks["sink_" + str(i)]["ypos"] = self.sinks["sink_" + str(i - 1)]["ypos"] + 100
                 self.sinks["sink_" + str(i)]["linked"] = False
             elif i == 7:
-                self.sinks["sink_" + str(i)]["xpos"] = self.sinks["sink_" + str(i - 1)]["xpos"]
-                self.sinks["sink_" + str(i)]["ypos"] = self.sinks["sink_" + str(i - 1)]["ypos"] + 100
+                self.sinks["sink_" + str(i)]["xpos"] = 356
+                self.sinks["sink_" + str(i)]["ypos"] = self.sinks["sink_" + str(i - 1)]["ypos"]
                 self.sinks["sink_" + str(i)]["linked"] = False
             elif i == 8:
                 self.sinks["sink_" + str(i)]["xpos"] = 300
