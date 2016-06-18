@@ -77,7 +77,8 @@ class impoundment():
     def set_sink(self, sink_name, state):
         """set sink."""
         if self.sinks[sink_name]["linked"] == state:
-            raise Exception('sink already in use')
+            return False
+            #raise Exception('sink already in use')
         else:
             self.sinks[sink_name]["linked"] = state
             return True
