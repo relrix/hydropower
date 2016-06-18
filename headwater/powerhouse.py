@@ -33,7 +33,8 @@ Gst.init(None)
 
 Gst.debug_set_active(True)
 Gst.debug_set_default_threshold(3)
-#Gst.debug_set_threshold_for_name("videomixer", 6)
+Gst.debug_set_threshold_for_name("videoconvert", 6)
+#Gst.debug_set_threshold_for_name("audiomixer", 9)
 # Gst.debug_set_threshold_for_name("rtmpsrc", 9)
 
 
@@ -53,32 +54,52 @@ class powerhouse():
         self.sink_count = 0
         self.impoundmentObj = impoundment()
 
+        #TEST ONE
+        self.which_main = "sink_0"
+
     def tailrace(self):
         """Element to drain out the stream to rtmpsink."""
-        self.videomix = Gst.ElementFactory.make("videomixer", None)
+        self.videomix = Gst.ElementFactory.make("videomixer", "videomixer")
+        self.audiomix = Gst.ElementFactory.make("audiomixer","audiomixer")
+        self.aacencode = Gst.ElementFactory.make("avenc_aac", "audioencoder")
+        self.x264enc = Gst.ElementFactory.make("x264enc", "videoencoder")
+        self.flvmux = Gst.ElementFactory.make("flvmux", "rtmpmuxer")
+        self.rtmpsink = Gst.ElementFactory.make("rtmpsink", "rtmpsink")
         # self.videomix = Gst.ElementFactory.make("compositor", None)
-        self.videomix.connect('pad-added', self.on_pad_added)
-        self.videomix.connect('pad-removed', self.on_pad_removed)
-        self.pipeline.add(self.videomix)
 
-        self.x264enc = Gst.ElementFactory.make("x264enc", None)
+
+        self.videomix.connect('pad-added', self.on_pad_added_video)
+        self.videomix.connect('pad-removed', self.on_pad_removed_video)
+
+        self.videomix.set_property("background","black")
+        #self.audiomix.connect('pad-added', self.on_pad_added_audio)
+        #self.audiomix.connect('pad-removed', self.on_pad_removed_audio)
+
+        self.aacencode.set_property("compliance", -2)
+        #self.aacencode.set_property("bitrate",64000)
+        #self.aacencode.set_property("perfect-timestamp",True)
+        #self.aacencode.set_property("hard-resync",True)
+
         self.x264enc.set_property("byte-stream", True)
         self.x264enc.set_property("pass", "qual")
         self.x264enc.set_property("b-adapt", False)
         self.x264enc.set_property("speed-preset", "veryfast")
         self.x264enc.set_property("key-int-max", 75)
-        self.pipeline.add(self.x264enc)
 
-        self.flvmux = Gst.ElementFactory.make("flvmux", None)
         self.flvmux.set_property("streamable", True)
-        self.flvmux.connect('pad-added', self.on_pad_added_muxer)
-        self.pipeline.add(self.flvmux)
-
-        self.rtmpsink = Gst.ElementFactory.make("rtmpsink", None)
+        #self.flvmux.connect('pad-added', self.on_pad_added_muxer)
         self.rtmpsink.set_property("location", "rtmp://172.18.5.221/onestream/shishir")
 
+        self.pipeline.add(self.videomix)
+        self.pipeline.add(self.audiomix)
+        self.pipeline.add(self.aacencode)
+        self.pipeline.add(self.x264enc)
+        self.pipeline.add(self.flvmux)
         self.pipeline.add(self.rtmpsink)
+
         self.videomix.link(self.x264enc)
+        self.audiomix.link(self.aacencode)
+        self.aacencode.link(self.flvmux)
         self.x264enc.link(self.flvmux)
         self.flvmux.link(self.rtmpsink)
 
@@ -108,12 +129,11 @@ class powerhouse():
         """create dictionary of created Objects."""
         if mainWindow:
             videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
+            audiomix_pad = self.audiomix.get_request_pad("sink_" + str(self.sink_count))
+            self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] ,self.streams["sink_" + str(self.sink_count)]["vidsinkpad"] , self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixer_pad=videomix_pad, rtmpsrc=rtmpsrc, flvmuxer=self.flvmux, tile=False)
             #self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
             self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
-            tempPad = self.flvmux.get_request_pad("audio")
-            state = self.streams["sink_0"]["audioqsrcpad"].link(tempPad)
-            print "Flv pad link state " + str (state)
+            self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"].link(audiomix_pad)
             #videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
             self.sink_count = self.sink_count + 1
             self.start_genetrator()
@@ -121,24 +141,24 @@ class powerhouse():
             self.addVideoTiles(rtmpsrc)
             return
 
-    def on_pad_added_muxer(self, element, pad):
-        """call back to linke audio."""
-        string = pad.query_caps(None).to_string()
-        print pad.get_name()
-
-        if string.startswith('audio/'):
-            print "Adding audio muxer"
+    # def on_pad_added_muxer(self, element, pad):
+    #     """call back to linke audio."""
+    #     string = pad.query_caps(None).to_string()
+    #     print pad.get_name()
+    #
+    #     if string.startswith('audio/'):
+    #         print "Adding audio muxer"
             #self.streams["sink_0"]["audioqsrcpad"].link(pad)
 
-    def on_pad_removed(self, element, pad):
+    def on_pad_removed_video(self, element, pad):
         """pad removed."""
         self.sink_count = self.sink_count - 1
         print "padremoved"
 
-    def on_pad_added(self, element, pad):
+    def on_pad_added_video(self, element, pad):
         """Callback to link a/v sink to decoder source."""
-        if(pad.get_name() == "sink_0"):
-            return
+        #if(pad.get_name() == "sink_0"):
+        #    return
         sink = self.impoundmentObj.get_sink_location(pad.get_name())
         pad.set_property("xpos", sink["xpos"])
         pad.set_property("ypos", sink["ypos"])
@@ -175,13 +195,132 @@ class powerhouse():
         """probe."""
         self.streams["sink_" + str(self.sink_count)] = {}
         videomix_pad = self.videomix.get_request_pad("sink_" + str(self.sink_count))
-        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixerelement = self.videomix, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
-        # self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
-        self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
+        audiomix_pad = self.audiomix.get_request_pad("sink_" + str(self.sink_count))
+        audiomix_pad.set_active(True)
         videomix_pad.set_active(True)
-        self.streams["sink_" + str(self.sink_count)]["bin"].set_state(Gst.State.PLAYING)
+        self.streams["sink_" + str(self.sink_count)]["bin"], self.streams["sink_" + str(self.sink_count)]["pad"] ,self.streams["sink_" + str(self.sink_count)]["vidsinkpad"], self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"], self.streams["sink_" + str(self.sink_count)]["audioqueue"] = stream.get_stream_for_mix(pipeline=self.pipeline, mixerelement = self.videomix, mixer_pad=videomix_pad, rtmpsrc=user_data, flvmuxer=self.flvmux, tile=True)
+            #self.pipeline.add(self.streams["sink_" + str(self.sink_count)]["bin"])
+        self.streams["sink_" + str(self.sink_count)]["pad"].link(videomix_pad)
+        self.streams["sink_" + str(self.sink_count)]["audioqsrcpad"].link(audiomix_pad)
+        #self.streams["sink_" + str(self.sink_count)]["bin"].set_state(Gst.State.PLAYING)
         #videomix_pad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.bin_probe_event_cb, None)
         self.sink_count = self.sink_count + 1
+
+
+    def changeStream(self):
+
+
+        gst_structure_main = Gst.Structure.new_empty("custom_videocaps")
+        gst_structure_main.set_value("data","video/x-raw,framerate=30/1,format=I420,width=640,height=360")
+
+        gst_structure_tile = Gst.Structure.new_empty("custom_videocaps")
+        gst_structure_tile.set_value("data","video/x-raw,framerate=30/1,format=I420,width=146,height=90")
+
+        self.custom_message_main = Gst.Event.new_custom(Gst.EventType.CUSTOM_DOWNSTREAM,gst_structure_main)
+        self.custom_message_tile = Gst.Event.new_custom(Gst.EventType.CUSTOM_DOWNSTREAM,gst_structure_tile)
+
+        #self.streams["sink_1"]["vidsinkpad"].send_event(Gst.Event.new_flush_start())
+        #self.streams["sink_1"]["vidsinkpad"].send_event(Gst.Event.new_flush_stop(True))
+
+
+        #self.streams["sink_0"]["vidsinkpad"].send_event(Gst.Event.new_flush_start())
+        #self.streams["sink_0"]["vidsinkpad"].send_event(Gst.Event.new_flush_stop(True))
+        if self.which_main == "sink_0":
+            self.which_main = "sink_1"
+            send_main = {"pad":"sink_1","mode":"main"}
+            send_tile = {"pad":"sink_0","mode":"tile"}
+            self.streams["sink_1"]["vidsinkpad"].send_event(self.custom_message_main)
+            self.streams["sink_0"]["vidsinkpad"].send_event(self.custom_message_tile)
+            self.streams["sink_1"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb1, send_main)
+            self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb, send_tile)
+        elif self.which_main == "sink_1":
+            self.which_main = "sink_0"
+            self.streams["sink_0"]["vidsinkpad"].send_event(self.custom_message_main)
+            self.streams["sink_1"]["vidsinkpad"].send_event(self.custom_message_tile)
+            send_main = {"pad":"sink_0","mode":"main"}
+            send_tile = {"pad":"sink_1","mode":"tile"}
+            self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb1, send_main)
+            self.streams["sink_1"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb, send_tile)
+
+        return Gst.PadProbeReturn.DROP
+
+
+
+    def change_sink_cb(self, pad ,info , user_data):
+        gstiterator = self.videomix.iterate_sink_pads()
+        while(True):
+            ret, itpad = gstiterator.next()
+            if ret == Gst.IteratorResult.OK:
+                if itpad.get_name() == user_data["pad"]:
+                    if user_data["mode"] == "tile":
+                        pad.remove_probe(info.id)
+                        itpad.set_property("xpos", 480)
+                        itpad.set_property("ypos", 20)
+                        itpad.set_property("zorder",1)
+                    elif user_data["mode"] == "main":
+                        pad.remove_probe(info.id)
+                        itpad.set_property("xpos", 0)
+                        itpad.set_property("ypos", 0)
+                        itpad.set_property("zorder",0)
+
+
+            if ret != Gst.IteratorResult.OK:
+                print "No more pads"
+                break;
+
+        return Gst.PadProbeReturn.DROP
+
+    def change_sink_cb1(self, pad ,info , user_data):
+        gstiterator = self.videomix.iterate_sink_pads()
+        while(True):
+            ret, itpad = gstiterator.next()
+            if ret == Gst.IteratorResult.OK:
+                if itpad.get_name() == user_data["pad"]:
+                    if user_data["mode"] == "tile":
+                        pad.remove_probe(info.id)
+                        itpad.set_property("xpos", 480)
+                        itpad.set_property("ypos", 20)
+                        itpad.set_property("zorder",1)
+                    elif user_data["mode"] == "main":
+                        pad.remove_probe(info.id)
+                        itpad.set_property("xpos", 0)
+                        itpad.set_property("ypos", 0)
+                        itpad.set_property("zorder",0)
+
+            if ret != Gst.IteratorResult.OK:
+                print "No more pads"
+                break;
+
+        return Gst.PadProbeReturn.DROP
+
+
+    # def change_audio_cb(self, pad, info, user_data):
+    #     EventType = info.get_event().type
+    #     if(EventType != Gst.EventType.EOS):
+    #         return Gst.PadProbeReturn.OK
+    #     pad.remove_probe(info.id)
+    #     self.streams["sink_0"]["pad"].set_state(Gst.State.PAUSED)
+    #     self.streams["sink_1"]["pad"].set_state(Gst.State.PAUSED)
+    #     gstiterator = self.flvmux.iterate_sink_pads()
+    #     while(True):
+    #         ret, pad = gstiterator.next()
+    #         if ret == Gst.IteratorResult.OK:
+    #             if pad.get_name() == "video":
+    #                 self.streams["sink_0"]["pad"].unlink(pad)
+    #                 state = self.streams["sink_1"]["pad"].link(pad)
+    #                 self.streams["sink_0"]["pad"].set_state(Gst.State.PLAYING)
+    #                 self.streams["sink_1"]["audioqueue"].set_state(Gst.State.PLAYING)
+    #                 break;
+    #
+    #         if ret != Gst.IteratorResult.OK:
+    #             print "Error"
+    #             break;
+    #
+    #     return Gst.PadProbeReturn.OK
+
+
+
+
     #
     #     print "BLOCKING ENds"
     #

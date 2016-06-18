@@ -43,23 +43,20 @@ class audiobin():
         self.audioresample = Gst.ElementFactory.make("audioresample", None)
         self.audiorate = Gst.ElementFactory.make("audiorate", None)
         self.audiocaps = Gst.ElementFactory.make("capsfilter", None)
-        self.aacencode = Gst.ElementFactory.make("avenc_aac", None)
+        self.volume = Gst.ElementFactory.make("volume", None)
+        self.audioconvert1 = Gst.ElementFactory.make("audioconvert", None)
         self.audiosinkqueue = Gst.ElementFactory.make("queue", None)
 
         if not self.decodeaudqueue or not self.audioconvert or not self.audioresample or not self.audiorate or not self.audiocaps \
-                or not self.aacencode or not self.audiosinkqueue:
+                or not self.volume or not self.volume or not self.audioconvert1 or not self.audiosinkqueue:
             raise Exception('Cannot create all audio bin ')
 
         """set properties."""
         self.audiocaps.set_property("caps", Gst.Caps.from_string("audio/x-raw, rate=44100"))
-        self.aacencode.set_property("compliance", -2)
-        self.aacencode.set_property("bitrate",64000)
-        self.aacencode.set_property("perfect-timestamp",True)
-        self.aacencode.set_property("hard-resync",True)
-
+        self.volume.set_property("volume", 2)
 
         """add elements to audiobin."""
-        for element in (self.decodeaudqueue, self.audioconvert, self.audioresample, self.audiorate, self.audiocaps, self.aacencode, self.audiosinkqueue):
+        for element in (self.decodeaudqueue, self.audioconvert, self.audioresample, self.audiorate, self.audiocaps, self.volume, self.audioconvert1,  self.audiosinkqueue):
             self.AudioBin.add(element)
 
         """link elements to audiobin."""
@@ -68,8 +65,9 @@ class audiobin():
         self.audioconvert.link(self.audioresample)
         self.audioresample.link(self.audiorate)
         self.audiorate.link(self.audiocaps)
-        self.audiocaps.link(self.aacencode)
-        self.aacencode.link(self.audiosinkqueue)
+        self.audiocaps.link(self.volume)
+        self.volume.link(self.audioconvert1)
+        self.audioconvert1.link(self.audiosinkqueue)
 
         """create a ghost pad for audiobin."""
 
@@ -88,8 +86,8 @@ class audiobin():
         #    self.AudioBin.set_state(Gst.State.READY)
         #else:
         #    self.AudioBin.set_state(Gst.State.PLAYING)
-        ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
-        #ghostPadsrc.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.eos_event, None)
+        #ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
+        ghostPadsrc.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.eos_event, None)
 
         ghostPadsink.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.test_cb, None)
 
@@ -120,6 +118,7 @@ class audiobin():
             newSegment.offset_running_time(Gst.Format.TIME,clock.get_time() - self.pipeline.get_base_time())
             audioconvert = self.audioconvert.get_static_pad("sink");
             audioconvert.send_event(Gst.Event.new_segment(newSegment));
+            print "On Audio Segment"
             return Gst.PadProbeReturn.DROP
         return Gst.PadProbeReturn.OK
 

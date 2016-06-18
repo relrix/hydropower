@@ -84,12 +84,15 @@ class avbin():
         self.videorate.link(self.videocaps)
         self.videocaps.link(self.videoconvert)
         self.videoconvert.link(self.videosinkqueue)
+
         Connectpad = self.videosinkqueue.get_static_pad("src")
         self.ghostPad = Gst.GhostPad.new(None, Connectpad)
         self.CustomBin.add_pad(self.ghostPad)
         ConnectpadSink = self.decodevidqueue.get_static_pad('sink')
         self.ghostPad1 = Gst.GhostPad.new(None, ConnectpadSink)
         self.CustomBin.add_pad(self.ghostPad1)
+
+
 
         self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
         #self.decodebin.link(self.audiobin)
@@ -116,7 +119,7 @@ class avbin():
 
         self.ghostPad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.eos_event, None)
 
-        return self.CustomBin, self.ghostPad, self.audqueuesrc, self.audioelement
+        return self.CustomBin, self.ghostPad, self.ghostPad1, self.audqueuesrc, self.audioelement
 
     def eos_event(self, pad, info, user_data):
         EventType = info.get_event().type
@@ -146,7 +149,7 @@ class avbin():
             self.decodercustomBin.add_pad(ghostPad)
             ghostPad.link(self.ghostPad1)
 
-        elif string.startswith('audio/') and not self.tile:
+        elif string.startswith('audio/'):
             print "linking audio with decoder"
             ghostPad = Gst.GhostPad.new(None, pad)
             ghostPad.set_active(True)
@@ -164,6 +167,7 @@ class avbin():
     def cb_event(self, pad, info, user_data):
         EventType = info.get_event().type
         if(EventType == Gst.EventType.SEGMENT):
+
             newSegment = Gst.Segment.new()
             newSegment.init(Gst.Format.TIME)
             newSegment.rate = 1.0
@@ -174,7 +178,20 @@ class avbin():
             videoscale = self.videoscale.get_static_pad("sink");
             videoscale.send_event(Gst.Event.new_segment(newSegment));
 
+            print "On Video Segment "
             return Gst.PadProbeReturn.DROP
+
+        elif(info.get_event().has_name("custom_videocaps")):
+            print "Got my custom message"
+            custom_structure = info.get_event().get_structure()
+            videocaps = custom_structure.get_string("data")
+            print "i have a caps of " + custom_structure.get_string("data")
+
+            self.videocaps.get_static_pad('src').add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH , self.caps_cb, videocaps)
+
+
+            #custom_structure.free()
+            return Gst.PadProbeReturn.OK
             #segment = info.get_event().parse_segment();
             #print("SEGMENT Rate = %f StartTime = %d StopTime = %d Time = %d Base= %d duration %d format %d " % (segment.rate,segment.start,segment.stop,segment.time,segment.base,segment.duration,segment.format))
             #clock = Gst.SystemClock.obtain()
@@ -182,7 +199,45 @@ class avbin():
             #print "VIDEO RUNNING TIME STATE " + str (state)
         return Gst.PadProbeReturn.OK
 
+    def caps_cb_test(self, pad, info, caps):
+        pad.remove_probe(info.id)
+        print " I am in caps_cb_test"
+        self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_BOTH , self.caps_cb, caps)
+        #self.videoscale.get_static_pad('sink').send_event(Gst.Event.new_eos())
+        return Gst.PadProbeReturn.OK
 
+
+
+
+    def caps_cb(self, pad, info, caps):
+        pad.remove_probe(info.id)
+        pad.get_parent_element().set_property("caps", Gst.Caps.from_string(caps))
+        return Gst.PadProbeReturn.DROP
+
+        if(info.get_event().type != Gst.EventType.FLUSH_START and info.get_event().type != Gst.EventType.FLUSH_STOP):
+            return Gst.PadProbeReturn.PASS
+        #if info.get_event().type !=  Gst.EventType.EOS:
+        #    return Gst.PadProbeReturn.PASS
+        # if(caps != None):
+
+        if(info.get_event().type == Gst.EventType.FLUSH_START):
+            print ("GOT FLUSH START HERE ____")
+            return Gst.PadProbeReturn.DROP
+        elif(info.get_event().type == Gst.EventType.FLUSH_STOP):
+            pad.remove_probe(info.id)
+            #pad.get_parent_element().set_state(Gst.State.NULL)
+            print " my current cap is " + str(pad.get_current_caps())
+            print " I have chil of "+ pad.get_parent_element().get_name()
+            pad.get_parent_element().set_property("caps", Gst.Caps.from_string(caps))
+            return Gst.PadProbeReturn.DROP
+        #pad.mark_reconfigure()
+        #self.CustomBin.remove(self.videocaps)
+        #self.videocaps.set_property("caps", Gst.Caps.from_string(caps))
+            #pad.get_parent_element().set_state(Gst.State.PLAYING)
+        #self.videorate.link(self.videocaps)
+        #self.videocaps.link(self.videoconvert)
+
+        return Gst.PadProbeReturn.PASS
 
 
     def buff_event(self, pad, info, user_data):
@@ -200,9 +255,9 @@ class avbin():
 def get_video_caps(tile=True):
     """get vidoe caps."""
     if not tile:
-        return "video/x-raw,framerate=12/1,format=I420,width=640,height=360"
+        return "video/x-raw,framerate=30/1,format=I420,width=640,height=360"
     else:
-        return "video/x-raw,framerate=12/1,format=I420,width=146,height=90"
+        return "video/x-raw,framerate=30/1,format=I420,width=146,height=90"
 
 
 def get_stream_for_mix(pipeline=None, mixerelement=None, mixer_pad=None, rtmpsrc=None, flvmuxer=None, tile=True):
@@ -210,5 +265,5 @@ def get_stream_for_mix(pipeline=None, mixerelement=None, mixer_pad=None, rtmpsrc
     if not rtmpsrc or not pipeline or not mixer_pad or not flvmuxer:
         raise Exception('Mandotarty fields are missing')
     bin = avbin(pipeline, mixerelement, mixer_pad, rtmpsrc, flvmuxer, tile)
-    custom_bin, pad, audqueuesrc, audioelement = bin.get_ghost_pad()
-    return custom_bin, pad, audqueuesrc, audioelement
+    custom_bin, pad, vidsinkpad, audqueuesrc, audioelement = bin.get_ghost_pad()
+    return custom_bin, pad, vidsinkpad, audqueuesrc, audioelement
