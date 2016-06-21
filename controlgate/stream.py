@@ -136,6 +136,7 @@ class avbin():
 
             self.videomix.release_request_pad(self.mixer_pad)
             return Gst.PadProbeReturn.DROP
+
         return Gst.PadProbeReturn.OK
 
 
@@ -187,11 +188,11 @@ class avbin():
             videocaps = custom_structure.get_string("data")
             print "i have a caps of " + custom_structure.get_string("data")
 
-            self.videocaps.get_static_pad('src').add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH , self.caps_cb, videocaps)
+            self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM , self.caps_cb, custom_structure)
 
 
             #custom_structure.free()
-            return Gst.PadProbeReturn.OK
+            return Gst.PadProbeReturn.DROP
             #segment = info.get_event().parse_segment();
             #print("SEGMENT Rate = %f StartTime = %d StopTime = %d Time = %d Base= %d duration %d format %d " % (segment.rate,segment.start,segment.stop,segment.time,segment.base,segment.duration,segment.format))
             #clock = Gst.SystemClock.obtain()
@@ -202,42 +203,90 @@ class avbin():
     def caps_cb_test(self, pad, info, caps):
         pad.remove_probe(info.id)
         print " I am in caps_cb_test"
-        self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_BOTH , self.caps_cb, caps)
+        self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM , self.caps_cb, caps)
         #self.videoscale.get_static_pad('sink').send_event(Gst.Event.new_eos())
         return Gst.PadProbeReturn.OK
 
 
-
-
-    def caps_cb(self, pad, info, caps):
+    def catch_flush (self, pad, info, videocaps):
+        EventType = info.get_event().type
         pad.remove_probe(info.id)
-        pad.get_parent_element().set_property("caps", Gst.Caps.from_string(caps))
+        print str(EventType) +" _____VIDEO_____CATCH FLUSH__"
+
+        if(EventType == Gst.EventType.FLUSH_START):
+            print ("GOT FLUSH START")
+            return Gst.PadProbeReturn.DROP
+        elif(EventType == Gst.EventType.FLUSH_STOP):
+            print ("GOT FLUSH STOP")
+
+            if "width=640" in videocaps:
+                self.mixer_pad.set_property("xpos", 0)
+                self.mixer_pad.set_property("ypos", 0)
+                self.mixer_pad.set_property("zorder",0)
+            else:
+                self.mixer_pad.set_property("xpos", 480)
+                self.mixer_pad.set_property("ypos", 20)
+                self.mixer_pad.set_property("zorder",1)
+            return Gst.PadProbeReturn.DROP
+
         return Gst.PadProbeReturn.DROP
 
-        if(info.get_event().type != Gst.EventType.FLUSH_START and info.get_event().type != Gst.EventType.FLUSH_STOP):
-            return Gst.PadProbeReturn.PASS
-        #if info.get_event().type !=  Gst.EventType.EOS:
-        #    return Gst.PadProbeReturn.PASS
-        # if(caps != None):
 
-        if(info.get_event().type == Gst.EventType.FLUSH_START):
-            print ("GOT FLUSH START HERE ____")
-            return Gst.PadProbeReturn.DROP
-        elif(info.get_event().type == Gst.EventType.FLUSH_STOP):
-            pad.remove_probe(info.id)
-            #pad.get_parent_element().set_state(Gst.State.NULL)
-            print " my current cap is " + str(pad.get_current_caps())
-            print " I have chil of "+ pad.get_parent_element().get_name()
-            pad.get_parent_element().set_property("caps", Gst.Caps.from_string(caps))
-            return Gst.PadProbeReturn.DROP
-        #pad.mark_reconfigure()
-        #self.CustomBin.remove(self.videocaps)
-        #self.videocaps.set_property("caps", Gst.Caps.from_string(caps))
-            #pad.get_parent_element().set_state(Gst.State.PLAYING)
-        #self.videorate.link(self.videocaps)
-        #self.videocaps.link(self.videoconvert)
+    def caps_cb(self, pad, info, custom_structure):
 
-        return Gst.PadProbeReturn.PASS
+        #self.CustomBin.set_state(Gst.State.PAUSED)
+        #self.decodercustomBin.set_state(Gst.State.PAUSED)
+        #self.audiobin.set_state(Gst.State.PAUSED)
+        #self.CustomBin.set_state(Gst.State.PLAYING)
+        #self.decodercustomBin.set_state(Gst.State.PLAYING)
+        #self.audiobin.set_state(Gst.State.PLAYING)
+        #if(self.mixer_pad.get_name() == "sink_0"):
+        videocaps = custom_structure.get_string("data")
+        pad.get_parent_element().set_property("caps", Gst.Caps.from_string(videocaps))
+        pad.remove_probe(info.id)
+        self.videosinkqueue.get_static_pad("sink").add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.catch_flush, videocaps )
+        self.videocaps.get_static_pad("sink").send_event(Gst.Event.new_flush_start())
+        self.videosinkqueue.get_static_pad("sink").add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.catch_flush, videocaps )
+        self.videocaps.get_static_pad("sink").send_event(Gst.Event.new_flush_stop(True))
+
+        return Gst.PadProbeReturn.DROP
+        # if(custom_structure.get_value("width") == 640):
+        #     self.mixer_pad.set_property("xpos", 0)
+        #     self.mixer_pad.set_property("ypos", 0)
+        #     self.mixer_pad.set_property("zorder",0)
+        # else:
+        #     self.mixer_pad.set_property("xpos", 480)
+        #     self.mixer_pad.set_property("ypos", 20)
+        #     self.mixer_pad.set_property("zorder",1)
+        # ##self.videocaps.get_static_pad('src').send_event(Gst.Event.new_flush_start())
+        # #self.videocaps.get_static_pad('src').send_event(Gst.Event.new_flush_stop(True))
+        #
+        # return Gst.PadProbeReturn.DROP
+        #
+        # if(info.get_event().type != Gst.EventType.FLUSH_START and info.get_event().type != Gst.EventType.FLUSH_STOP):
+        #     return Gst.PadProbeReturn.PASS
+        # #if info.get_event().type !=  Gst.EventType.EOS:
+        # #    return Gst.PadProbeReturn.PASS
+        # # if(caps != None):
+        #
+        # if(info.get_event().type == Gst.EventType.FLUSH_START):
+        #     print ("GOT FLUSH START HERE ____")
+        #     return Gst.PadProbeReturn.DROP
+        # elif(info.get_event().type == Gst.EventType.FLUSH_STOP):
+        #     pad.remove_probe(info.id)
+        #     #pad.get_parent_element().set_state(Gst.State.NULL)
+        #     print " my current cap is " + str(pad.get_current_caps())
+        #     print " I have chil of "+ pad.get_parent_element().get_name()
+        #     pad.get_parent_element().set_property("caps", Gst.Caps.from_string(caps))
+        #     return Gst.PadProbeReturn.DROP
+        # #pad.mark_reconfigure()
+        # #self.CustomBin.remove(self.videocaps)
+        # #self.videocaps.set_property("caps", Gst.Caps.from_string(caps))
+        #     #pad.get_parent_element().set_state(Gst.State.PLAYING)
+        # #self.videorate.link(self.videocaps)
+        # #self.videocaps.link(self.videoconvert)
+        #
+        # return Gst.PadProbeReturn.PASS
 
 
     def buff_event(self, pad, info, user_data):

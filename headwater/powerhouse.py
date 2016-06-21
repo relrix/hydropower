@@ -33,7 +33,7 @@ Gst.init(None)
 
 Gst.debug_set_active(True)
 Gst.debug_set_default_threshold(3)
-Gst.debug_set_threshold_for_name("videoconvert", 6)
+#Gst.debug_set_threshold_for_name("videomixer", 6)
 #Gst.debug_set_threshold_for_name("audiomixer", 9)
 # Gst.debug_set_threshold_for_name("rtmpsrc", 9)
 
@@ -227,38 +227,43 @@ class powerhouse():
         #self.streams["sink_0"]["vidsinkpad"].send_event(Gst.Event.new_flush_stop(True))
         if self.which_main == "sink_0":
             self.which_main = "sink_1"
-            send_main = {"pad":"sink_1","mode":"main"}
-            send_tile = {"pad":"sink_0","mode":"tile"}
-            self.streams["sink_1"]["vidsinkpad"].send_event(self.custom_message_main)
+            send_main = {"mainpad":"sink_1","tilepad":"sink_0"}
+            #send_tile = {"pad":"sink_0","mode":"tile"}
+
             self.streams["sink_0"]["vidsinkpad"].send_event(self.custom_message_tile)
-            self.streams["sink_1"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb1, send_main)
-            self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb, send_tile)
+            self.streams["sink_1"]["vidsinkpad"].send_event(self.custom_message_main)
+            #self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM|Gst.PadProbeType.EVENT_FLUSH, self.change_sink_cb, send_main)
+            #self.streams["sink_1"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.change_sink_cb1, send_main)
+            #self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.change_sink_cb, send_tile)
+            #self.streams["sink_1"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb1, send_main)
+            #self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb, send_main)
         elif self.which_main == "sink_1":
             self.which_main = "sink_0"
-            self.streams["sink_0"]["vidsinkpad"].send_event(self.custom_message_main)
-            self.streams["sink_1"]["vidsinkpad"].send_event(self.custom_message_tile)
-            send_main = {"pad":"sink_0","mode":"main"}
-            send_tile = {"pad":"sink_1","mode":"tile"}
-            self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb1, send_main)
-            self.streams["sink_1"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb, send_tile)
+            send_main = {"mainpad":"sink_0","tilepad":"sink_1"}
 
-        return Gst.PadProbeReturn.DROP
+            self.streams["sink_1"]["vidsinkpad"].send_event(self.custom_message_tile)
+            self.streams["sink_0"]["vidsinkpad"].send_event(self.custom_message_main)
+            #self.streams["sink_0"]["pad"].add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM|Gst.PadProbeType.EVENT_FLUSH, self.change_sink_cb, send_main)
+            #send_main = {"mainpad":"sink_0","tilepad":"sink_1"}
+            #send_tile = {"pad":"sink_1","mode":"tile"}
+            #self.streams["sink_1"]["pad"].add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.change_sink_cb, send_tile)
+
+        #return Gst.PadProbeReturn.DROP
 
 
 
     def change_sink_cb(self, pad ,info , user_data):
+
+        print "*******SINK CB ***** " + str(info.get_event().type)
         gstiterator = self.videomix.iterate_sink_pads()
         while(True):
             ret, itpad = gstiterator.next()
             if ret == Gst.IteratorResult.OK:
-                if itpad.get_name() == user_data["pad"]:
-                    if user_data["mode"] == "tile":
-                        pad.remove_probe(info.id)
+                if itpad.get_name() == user_data["tilepad"]:
                         itpad.set_property("xpos", 480)
                         itpad.set_property("ypos", 20)
                         itpad.set_property("zorder",1)
-                    elif user_data["mode"] == "main":
-                        pad.remove_probe(info.id)
+                if  itpad.get_name() == user_data["mainpad"]:
                         itpad.set_property("xpos", 0)
                         itpad.set_property("ypos", 0)
                         itpad.set_property("zorder",0)
@@ -267,8 +272,8 @@ class powerhouse():
             if ret != Gst.IteratorResult.OK:
                 print "No more pads"
                 break;
-
-        return Gst.PadProbeReturn.DROP
+        pad.remove_probe(info.id)
+        return Gst.PadProbeReturn.OK
 
     def change_sink_cb1(self, pad ,info , user_data):
         gstiterator = self.videomix.iterate_sink_pads()
