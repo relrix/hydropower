@@ -89,6 +89,7 @@ class powerhouse():
         self.flvmux.set_property("streamable", True)
         #self.flvmux.connect('pad-added', self.on_pad_added_muxer)
         self.rtmpsink.set_property("location", "rtmp://172.18.5.221/onestream/shishir")
+        self.rtmpsink.set_property("location", "rtmp://qa-fmseosa.on24.com/liveeosa/1258555_1_fhvideo1_EE537ECD31DC3D71A4BA89FC4F155A6B_A")
 
         self.pipeline.add(self.videomix)
         self.pipeline.add(self.audiomix)
