@@ -1,3 +1,4 @@
+#!/usr/bin/python
 """hydropower.
 
 Copyright (C) 2016 - Shishir Pokharel
@@ -16,33 +17,77 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 """
-from headwater import powerhouse
+from headwater import powerhouse as mainapp
 from threading import Thread
+import sys
 import time
-import random
-
-hydroObj = powerhouse.powerhouse()
-hydroObj.tailrace()
+import signal
+import api.apisocket.on24server as appsocket
 
 
-def threadStart(hydro_obj):
-    """thread."""
-    print "Running on the thread"
-    count = 0
-    val = 0
-    while(count <= 0):
-        val = random.randint(10, 60)
-        val = val + 10
-        print "sleeping " + str(val) + " seconds"
-        time.sleep(val)
-        if count % 2 == 0:
-            hydro_obj.add_streams("RTMPURL")
-        else:
-            hydro_obj.add_streams("RTMPURL")
-        count = count + 1
+class mainClass():
+    """main class."""
+
+    def __init__(self, eventdid, dsturl):
+        """init."""
+        self.eventid = eventid
+        self.dsturl = dsturl
+        self.infinite_loop = True
+        self.myapp = None
+        self.on24sock = None
+
+    def start_engine(self):
+        """start engine."""
+        print "Kick started the engine."
+        self.myapp = mainapp.powerhouse(self.dsturl)
+        self.on24sock = appsocket.ServerListener(eventid, self.callback1)
+        self.on24sock.start()
+        self.myapp.start()
+
+    def callback1(self, message):
+        """my callback."""
+        if message['action'] == 'add_presenter':
+            self.myapp.addVideoTiles(message['rtmpurl'] + " live=1", message['presenter_id'])
+        elif message['action'] == 'switch_presenter':
+            self.myapp.changeStream(message['presenter_id'])
+        print " I have a callback to deal with"
+        return "you got it! "
+
+    def usr_signal(self, signum, stack):
+        """handel User Signal."""
+        print 'Received UserSIG:', signum
+        self.on24sock.stop()
+        self.myapp.stop()
+        self.infinite_loop = False
+
+    def child_signal(self, signum, stack):
+        """handel Ctrl+C."""
+        print 'Received:', signum
+        self.on24sock.stop()
+        self.myapp.stop()
+        self.infinite_loop = False
+
+    def go_infinite(self):
+        """listen when to self destory."""
+        while(self.infinite_loop):
+            try:
+                print "waiting for self destruction"
+                time.sleep(3)
+            except KeyboardInterrupt:
+               break
+
+        self.myapp.join()
+        self.on24sock.join()
+        print "END OF APP."
+        sys.exit(0)
 
 
-testThread = Thread(target=threadStart, args=(hydroObj,))
-testThread.start()
-
-hydroObj.add_streams("ADD Main stream")
+if __name__ == '__main__':
+    eventid = str(sys.argv[1])
+    dsturl = str(sys.argv[2])
+    listen = mainClass(eventid, dsturl)
+    signal.signal(signal.SIGINT, listen.child_signal)
+    signal.signal(signal.SIGUSR1, listen.usr_signal)
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+    listen.start_engine()
+    listen.go_infinite()

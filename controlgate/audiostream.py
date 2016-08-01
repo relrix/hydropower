@@ -52,15 +52,15 @@ class audiobin():
             raise Exception('Cannot create all audio bin ')
 
         """set properties."""
-        self.audiocaps.set_property("caps", Gst.Caps.from_string("audio/x-raw, rate=44100"))
+        self.audiocaps.set_property("caps", Gst.Caps.from_string("audio/x-raw, format=S16LE, rate=44100, channels=2, layout=interleaved"))
         self.volume.set_property("volume", 2)
 
         """add elements to audiobin."""
-        for element in (self.decodeaudqueue, self.audioconvert, self.audioresample, self.audiorate, self.audiocaps, self.volume, self.audioconvert1,  self.audiosinkqueue):
+        for element in (self.decodeaudqueue, self.audioconvert, self.audioresample, self.audiorate, self.audiocaps, self.volume, self.audioconvert1, self.audiosinkqueue):
             self.AudioBin.add(element)
 
         """link elements to audiobin."""
-        #self.demuxer.link(self.decodeaudqueue)
+        # self.demuxer.link(self.decodeaudqueue)
         self.decodeaudqueue.link(self.audioconvert)
         self.audioconvert.link(self.audioresample)
         self.audioresample.link(self.audiorate)
@@ -79,14 +79,15 @@ class audiobin():
         self.AudioBin.add_pad(ghostPadsrc)
         self.pipeline.add(self.AudioBin)
 
+
         clock = self.pipeline.get_clock()
         self.AudioBin.set_base_time(self.pipeline.get_base_time())
         self.AudioBin.set_clock(clock)
-        #if not self.tile:
+        # if not self.tile:
         #    self.AudioBin.set_state(Gst.State.READY)
-        #else:
+        # else:
         #    self.AudioBin.set_state(Gst.State.PLAYING)
-        #ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
+        # ghostPadsrc.add_probe(Gst.PadProbeType.BUFFER, self.buff_event, None)
         ghostPadsrc.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.eos_event, None)
 
         ghostPadsink.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.test_cb, None)
@@ -94,20 +95,19 @@ class audiobin():
         return self.AudioBin, ghostPadsink, ghostPadsrc, self.audiosinkqueue
 
     def eos_event(self, pad, info, user_data):
+        """on EOS event."""
         EventType = info.get_event().type
         print str(EventType) + "  ____AUDIO____"
         if(EventType == Gst.EventType.EOS):
             print("End-Of-Stream reached. AUDIO")
-            #self.AudioBin.set_state(Gst.State.NULL)
-            #if(pad.is_linked):
+            # self.AudioBin.set_state(Gst.State.NULL)
+            # if(pad.is_linked):
             #    pad.unlink()
             return Gst.PadProbeReturn.DROP
         return Gst.PadProbeReturn.OK
 
-
-
-
     def test_cb(self, pad, info, user_data):
+        """test call back."""
         EventType = info.get_event().type
         if(EventType == Gst.EventType.SEGMENT):
             newSegment = Gst.Segment.new()
@@ -115,33 +115,31 @@ class audiobin():
             newSegment.rate = 1.0
             newSegment.format = 3
             clock = Gst.SystemClock.obtain()
-            newSegment.offset_running_time(Gst.Format.TIME,clock.get_time() - self.pipeline.get_base_time())
-            audioconvert = self.audioconvert.get_static_pad("sink");
-            audioconvert.send_event(Gst.Event.new_segment(newSegment));
+            newSegment.offset_running_time(Gst.Format.TIME, clock.get_time() - self.pipeline.get_base_time())
+            audioconvert = self.audioconvert.get_static_pad("sink")
+            audioconvert.send_event(Gst.Event.new_segment(newSegment))
             print "On Audio Segment"
             return Gst.PadProbeReturn.DROP
         return Gst.PadProbeReturn.OK
 
-
-
-    def buff_event(self, pad, info, user_data):
+    # def buff_event(self, pad, info, user_data):
         """block  buffer and change PTS / DTS."""
-        buf = info.get_buffer()
-        clock = Gst.SystemClock.obtain()
-        #print("before BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
-        #print("pipeline base time %f current clock %f " %(self.pipeline.get_base_time(),clock.get_time()))
-        #print("offset %f  offset end %f " %(buf.offset,buf.offset_end))
-        running_time = clock.get_time() - self.pipeline.get_base_time()
-        #print ("PIPELINE RUNNING TINE %f start time %f"%(running_time,self.pipeline.get_start_time()))
-        #if(buf.pts < 1):
+        # buf = info.get_buffer()
+        # clock = Gst.SystemClock.obtain()
+        # print("before BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
+        # print("pipeline base time %f current clock %f " %(self.pipeline.get_base_time(),clock.get_time()))
+        # print("offset %f  offset end %f " %(buf.offset,buf.offset_end))
+        # running_time = clock.get_time() - self.pipeline.get_base_time()
+        # print ("PIPELINE RUNNING TINE %f start time %f"%(running_time,self.pipeline.get_start_time()))
+        # if(buf.pts < 1):
         #    buf.pts = self.pipeline.get_base_time() + buf.duration
     #        buf.dts = self.pipeline.get_base_time()  + buf.duration
     #    else:
     #        buf.pts = clock.get_time() - self.pipeline.get_base_time()
     #        buf.dts = clock.get_time() -self.pipeline.get_base_time()
 
-        #print("after BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
-        return Gst.PadProbeReturn.OK
+        # print("after BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
+        # return Gst.PadProbeReturn.OK
 
 
 def get_bin_pad(pipeline=None, demuxer=None, tile=True):

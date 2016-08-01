@@ -21,7 +21,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 from gi.repository import GObject
 from gi.repository import Gst
 from audiostream import get_bin_pad
+from threading import Thread
 import gi
+import time
 gi.require_version('Gst', '1.0')
 GObject.threads_init()
 Gst.init(None)
@@ -30,14 +32,14 @@ Gst.init(None)
 class avbin():
     """audio video bin."""
 
-    def __init__(self, pipeline, mixerelement, mixer_pad, rtmp_location, flvmuxer, tile):
+    def __init__(self, pipeline, videomix, videoMixer_pad, audiomix, audioMixer_pad, rtmp_location):
         """init."""
         self.pipeline = pipeline
-        self.videomix = mixerelement
-        self.mixer_pad = mixer_pad
+        self.videomix = videomix
+        self.videoMixer_pad = videoMixer_pad
+        self.audioMixer_pad = audioMixer_pad
         self.rtmp_location = rtmp_location
-        self.flvmuxer = flvmuxer
-        self.tile = tile
+        self.audiomix = audiomix
         self.CustomBin = Gst.Bin.new(None)
         self.decodercustomBin = Gst.Bin.new(None)
 
@@ -59,13 +61,13 @@ class avbin():
         """set properties."""
 
         self.videosrc.set_property("location", self.rtmp_location)
-        #self.videosrc.set_property("do-timestamp", True)
+        # self.videosrc.set_property("do-timestamp", True)
         self.videosrc.set_property("blocksize", 512)
 
         self.decodebin.set_property("message-forward", "true")
         self.decodebin.connect('pad-added', self.on_pad_added)
         self.videoscale.set_property("method", "bilinear")
-        self.videocaps.set_property("caps", Gst.Caps.from_string(get_video_caps(self.tile)))
+        self.videocaps.set_property("caps", Gst.Caps.from_string("video/x-raw,framerate=30/1,format=I420,width=146,height=90"))
 
         """add elements to CustomBin."""
 
@@ -92,10 +94,8 @@ class avbin():
         self.ghostPad1 = Gst.GhostPad.new(None, ConnectpadSink)
         self.CustomBin.add_pad(self.ghostPad1)
 
-
-
-        self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin, self.tile)
-        #self.decodebin.link(self.audiobin)
+        self.audiobin, self.audqueuesink, self.audqueuesrc, self.audioelement = get_bin_pad(self.pipeline, self.decodebin)
+        # self.decodebin.link(self.audiobin)
         self.pipeline.add(self.decodercustomBin)
         self.pipeline.add(self.CustomBin)
 
@@ -105,40 +105,45 @@ class avbin():
         self.decodercustomBin.set_base_time(self.pipeline.get_base_time())
         self.decodercustomBin.set_clock(clock)
 
-        #if not self.tile:
-            #self.CustomBin.set_state(Gst.State.READY)
-            #self.decodercustomBin.set_state(Gst.State.READY)
-            #self.audiobin.set_state(Gst.State.READY)
-        if self.tile:
-           self.CustomBin.set_state(Gst.State.PLAYING)
-           self.decodercustomBin.set_state(Gst.State.PLAYING)
-           self.audiobin.set_state(Gst.State.PLAYING)
+        # if not self.tile:
+        # self.CustomBin.set_state(Gst.State.READY)
+        # self.decodercustomBin.set_state(Gst.State.READY)
+        # self.audiobin.set_state(Gst.State.READY)
+        self.CustomBin.set_state(Gst.State.PLAYING)
+        self.decodercustomBin.set_state(Gst.State.PLAYING)
+        self.audiobin.set_state(Gst.State.PLAYING)
 
-        #if self.tile:
+        # if self.tile:
         self.ghostPad1.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.cb_event, None)
 
         self.ghostPad.add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, self.eos_event, None)
 
-        return self.CustomBin, self.ghostPad, self.ghostPad1, self.audqueuesrc, self.audioelement
+        return self.CustomBin, self.ghostPad, self.ghostPad1, self.audqueuesrc, self.audioelement, self.videocaps
 
     def eos_event(self, pad, info, user_data):
+        """on EOS EVENT."""
         EventType = info.get_event().type
-        print str(EventType) +" _____VIDEO_____"
+        print str(EventType) + " _____VIDEO_____"
         if(EventType == Gst.EventType.EOS):
             print("End-Of-Stream reached. VIDEO")
-            self.CustomBin.set_state(Gst.State.NULL)
-            self.decodercustomBin.set_state(Gst.State.NULL)
-            self.audiobin.set_state(Gst.State.NULL)
-            self.pipeline.remove(self.CustomBin)
-            self.pipeline.remove(self.decodercustomBin)
-            self.pipeline.remove(self.audiobin)
-            # TODO do clean ups for later
+            releaseThread = Thread(target=self.release_resources, args=())
+            releaseThread.start()
 
-            self.videomix.release_request_pad(self.mixer_pad)
             return Gst.PadProbeReturn.DROP
 
         return Gst.PadProbeReturn.OK
 
+    def release_resources(self):
+        self.CustomBin.set_state(Gst.State.NULL)
+        self.decodercustomBin.set_state(Gst.State.NULL)
+        self.audiobin.set_state(Gst.State.NULL)
+        self.pipeline.remove(self.CustomBin)
+        self.pipeline.remove(self.decodercustomBin)
+        self.pipeline.remove(self.audiobin)
+        # TODO do clean ups for later
+        print("RELEASE REQUEST FOR AUDIO VIDEO PADS")
+        self.videomix.release_request_pad(self.videoMixer_pad)
+        self.audiomix.release_request_pad(self.audioMixer_pad)
 
     def on_pad_added(self, element, pad):
         """Callback to link a/v sink to decoder source."""
@@ -166,6 +171,7 @@ class avbin():
         self.CustomBin.set_state(Gst.State.PLAYING)
 
     def cb_event(self, pad, info, user_data):
+        """call back event."""
         EventType = info.get_event().type
         if(EventType == Gst.EventType.SEGMENT):
 
@@ -174,10 +180,10 @@ class avbin():
             newSegment.rate = 1.0
             newSegment.format = 3
             clock = Gst.SystemClock.obtain()
-            newSegment.offset_running_time(Gst.Format.TIME,clock.get_time() - self.pipeline.get_base_time())
-            #newSegment.to_position(Gst.Format.TIME,clock.get_time() - self.pipeline.get_base_time())
-            videoscale = self.videoscale.get_static_pad("sink");
-            videoscale.send_event(Gst.Event.new_segment(newSegment));
+            newSegment.offset_running_time(Gst.Format.TIME, clock.get_time() - self.pipeline.get_base_time())
+            # newSegment.to_position(Gst.Format.TIME,clock.get_time() - self.pipeline.get_base_time())
+            videoscale = self.videoscale.get_static_pad("sink")
+            videoscale.send_event(Gst.Event.new_segment(newSegment))
 
             print "On Video Segment "
             return Gst.PadProbeReturn.DROP
@@ -186,78 +192,137 @@ class avbin():
             print "Got my custom message"
             custom_structure = info.get_event().get_structure()
             videocaps = custom_structure.get_string("data")
+            print videocaps
             print "i have a caps of " + custom_structure.get_string("data")
 
-            self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM , self.caps_cb, custom_structure)
-
-
-            #custom_structure.free()
+            self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK_DOWNSTREAM, self.caps_cb, custom_structure)
+            # custom_structure.free()
             return Gst.PadProbeReturn.DROP
-            #segment = info.get_event().parse_segment();
-            #print("SEGMENT Rate = %f StartTime = %d StopTime = %d Time = %d Base= %d duration %d format %d " % (segment.rate,segment.start,segment.stop,segment.time,segment.base,segment.duration,segment.format))
-            #clock = Gst.SystemClock.obtain()
-            #state = segment.offset_running_time(Gst.Format.TIME, clock.get_time() - self.pipeline.get_base_time())
-            #print "VIDEO RUNNING TIME STATE " + str (state)
+            # segment = info.get_event().parse_segment();
+            # print("SEGMENT Rate = %f StartTime = %d StopTime = %d Time = %d Base= %d duration %d format %d " % (segment.rate,segment.start,segment.stop,segment.time,segment.base,segment.duration,segment.format))
+            # clock = Gst.SystemClock.obtain()
+            # state = segment.offset_running_time(Gst.Format.TIME, clock.get_time() - self.pipeline.get_base_time())
+            # print "VIDEO RUNNING TIME STATE " + str (state)
         return Gst.PadProbeReturn.OK
 
     def caps_cb_test(self, pad, info, caps):
+        """test callback."""
         pad.remove_probe(info.id)
         print " I am in caps_cb_test"
-        self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM , self.caps_cb, caps)
-        #self.videoscale.get_static_pad('sink').send_event(Gst.Event.new_eos())
+        self.videocaps.get_static_pad('sink').add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM, self.caps_cb, caps)
+        # self.videoscale.get_static_pad('sink').send_event(Gst.Event.new_eos())
         return Gst.PadProbeReturn.OK
 
+    def catch_flush(self, pad, info, custom_structure):
+        """flush cacahe."""
+        videocaps = custom_structure.get_string("data")
+        maincap = custom_structure.get_value("on24cap")
+        speaker_past = custom_structure.get_string("past_speaker")
 
-    def catch_flush (self, pad, info, videocaps):
         EventType = info.get_event().type
-        pad.remove_probe(info.id)
-        print str(EventType) +" _____VIDEO_____CATCH FLUSH__"
+        # pad.remove_probe(info.id)
+        print str(EventType) + " _____VIDEO_____CATCH FLUSH__"
 
         if(EventType == Gst.EventType.FLUSH_START):
             print ("GOT FLUSH START")
             return Gst.PadProbeReturn.DROP
         elif(EventType == Gst.EventType.FLUSH_STOP):
             print ("GOT FLUSH STOP")
+            pad.remove_probe(info.id)
+            temp_xpos = self.videoMixer_pad.get_property("xpos")
+            temp_ypos = self.videoMixer_pad.get_property("ypos")
+            temp_zorder = self.videoMixer_pad.get_property("zorder")
+            self.videoMixer_pad.set_property("xpos", 0)
+            self.videoMixer_pad.set_property("ypos", 0)
+            self.videoMixer_pad.set_property("zorder", 2)
 
-            if "width=640" in videocaps:
-                self.mixer_pad.set_property("xpos", 0)
-                self.mixer_pad.set_property("ypos", 0)
-                self.mixer_pad.set_property("zorder",0)
-            else:
-                self.mixer_pad.set_property("xpos", 480)
-                self.mixer_pad.set_property("ypos", 20)
-                self.mixer_pad.set_property("zorder",1)
+            if maincap is not None:
+                maincap.set_property("caps", Gst.Caps.from_string("video/x-raw,framerate=30/1,format=I420,width=146,height=90"))
+                self.videomix.get_static_pad(speaker_past).set_property("xpos", temp_xpos)
+                self.videomix.get_static_pad(speaker_past).set_property("ypos", temp_ypos)
+                self.videomix.get_static_pad(speaker_past).set_property("zorder", temp_zorder)
+
+            # run = True
+            # zorder = 2
+            # vid_sink_pads_ite = self.videomix.iterate_sink_pads()
+            # while(run):
+            #     ret, pads = vid_sink_pads_ite.next()
+            #     if ret == Gst.IteratorResult.OK:
+            #         print "Zorder ", pads.get_name(), pads.get_property("zorder")
+            #         if "sink_0" not in pads.get_name():
+            #             if(pads.get_name() in self.videoMixer_pad.get_name()):
+            #                 pass
+            #             else:
+            #                 pads.set_property("zorder", zorder)
+            #                 zorder = zorder + 1
+            #
+            #     if ret != Gst.IteratorResult.OK:
+            #         print "Breaking Iterator"
+            #         run = False
+            #         break
+            # run = True
+            # while(run):
+            #     ret, pads = vid_sink_pads_ite.next()
+            #     if ret == Gst.IteratorResult.OK:
+            #         print "Zorder AFTER ", pads.get_name(), pads.get_property("zorder")
+            #     if ret != Gst.IteratorResult.OK:
+            #         print "Breaking Iterator"
+            #         run = False
+            #         break
+
+
+            # if self.videoMixer_pad.get_name() == "sink_1":
+            #     self.videomix.get_static_pad("sink_2").set_property("xpos", 0)
+            #     self.videomix.get_static_pad("sink_2").set_property("ypos", 0)
+            #     self.videomix.get_static_pad("sink_2").set_property("zorder", 1)
+            # else:
+            #     self.videomix.get_static_pad("sink_1").set_property("xpos", 0)
+            #     self.videomix.get_static_pad("sink_1").set_property("ypos", 0)
+            #     self.videomix.get_static_pad("sink_1").set_property("zorder", 1)
+
+            #else:
+            #    self.videoMixer_pad.set_property("xpos", 480)
+            #    self.videoMixer_pad.set_property("ypos", 20)
+            #    self.videoMixer_pad.set_property("zorder", 2)
             return Gst.PadProbeReturn.DROP
 
         return Gst.PadProbeReturn.DROP
 
-
     def caps_cb(self, pad, info, custom_structure):
-
-        #self.CustomBin.set_state(Gst.State.PAUSED)
-        #self.decodercustomBin.set_state(Gst.State.PAUSED)
-        #self.audiobin.set_state(Gst.State.PAUSED)
-        #self.CustomBin.set_state(Gst.State.PLAYING)
-        #self.decodercustomBin.set_state(Gst.State.PLAYING)
-        #self.audiobin.set_state(Gst.State.PLAYING)
-        #if(self.mixer_pad.get_name() == "sink_0"):
+        """caps callback on probe."""
         videocaps = custom_structure.get_string("data")
+        maincap = custom_structure.get_value("on24cap")
+        speaker_past = custom_structure.get_string("past_speaker")
+        # self.CustomBin.set_state(Gst.State.PAUSED)
+        # self.decodercustomBin.set_state(Gst.State.PAUSED)
+        # self.audiobin.set_state(Gst.State.PAUSED)
+        # self.CustomBin.set_state(Gst.State.PLAYING)
+        # self.decodercustomBin.set_state(Gst.State.PLAYING)
+        # self.audiobin.set_state(Gst.State.PLAYING)
+        # if(self.videoMixer_pad.get_name() == "sink_0"):
+        #if maincap is not None:
+            #self.videomix.get_static_pad(speaker_past).set_property("zorder", 0)
+
         pad.get_parent_element().set_property("caps", Gst.Caps.from_string(videocaps))
+        if speaker_past is not None:
+            self.videomix.get_static_pad(speaker_past).set_property("zorder", 0)
+
+        print "We got cap as ", maincap
         pad.remove_probe(info.id)
-        self.videosinkqueue.get_static_pad("sink").add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.catch_flush, videocaps )
+        self.videosinkqueue.get_static_pad("sink").add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.catch_flush, custom_structure)
         self.videocaps.get_static_pad("sink").send_event(Gst.Event.new_flush_start())
-        self.videosinkqueue.get_static_pad("sink").add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.catch_flush, videocaps )
+        # self.videosinkqueue.get_static_pad("sink").add_probe(Gst.PadProbeType.BLOCK | Gst.PadProbeType.EVENT_DOWNSTREAM | Gst.PadProbeType.EVENT_FLUSH, self.catch_flush, videocaps)
         self.videocaps.get_static_pad("sink").send_event(Gst.Event.new_flush_stop(True))
 
         return Gst.PadProbeReturn.DROP
         # if(custom_structure.get_value("width") == 640):
-        #     self.mixer_pad.set_property("xpos", 0)
-        #     self.mixer_pad.set_property("ypos", 0)
-        #     self.mixer_pad.set_property("zorder",0)
+        #     self.videoMixer_pad.set_property("xpos", 0)
+        #     self.videoMixer_pad.set_property("ypos", 0)
+        #     self.videoMixer_pad.set_property("zorder",0)
         # else:
-        #     self.mixer_pad.set_property("xpos", 480)
-        #     self.mixer_pad.set_property("ypos", 20)
-        #     self.mixer_pad.set_property("zorder",1)
+        #     self.videoMixer_pad.set_property("xpos", 480)
+        #     self.videoMixer_pad.set_property("ypos", 20)
+        #     self.videoMixer_pad.set_property("zorder",1)
         # ##self.videocaps.get_static_pad('src').send_event(Gst.Event.new_flush_start())
         # #self.videocaps.get_static_pad('src').send_event(Gst.Event.new_flush_stop(True))
         #
@@ -288,31 +353,29 @@ class avbin():
         #
         # return Gst.PadProbeReturn.PASS
 
-
     def buff_event(self, pad, info, user_data):
         """block start segment."""
-        #buf = info.get_buffer()
+        # buf = info.get_buffer()
         # print("before BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
-        #clock = Gst.SystemClock.obtain()
-        #buf.pts = clock.get_time() - self.pipeline.get_base_time() + buf.duration
-        #buf.dts = clock.get_time() - self.pipeline.get_base_time() - buf.duration
+        # clock = Gst.SystemClock.obtain()
+        # buf.pts = clock.get_time() - self.pipeline.get_base_time() + buf.duration
+        # buf.dts = clock.get_time() - self.pipeline.get_base_time() - buf.duration
         # print("after BUFF PTS = %f  DTS %f duration %f " %(buf.pts,buf.dts,buf.duration))
         return Gst.PadProbeReturn.OK
 
 
+# def get_video_caps(tile=True):
+#     """get vidoe caps."""
+#     if not tile:
+#         return "video/x-raw,framerate=30/1,format=I420,width=640,height=360"
+#     else:
+#         return "video/x-raw,framerate=30/1,format=I420,width=146,height=90"
 
-def get_video_caps(tile=True):
-    """get vidoe caps."""
-    if not tile:
-        return "video/x-raw,framerate=30/1,format=I420,width=640,height=360"
-    else:
-        return "video/x-raw,framerate=30/1,format=I420,width=146,height=90"
 
-
-def get_stream_for_mix(pipeline=None, mixerelement=None, mixer_pad=None, rtmpsrc=None, flvmuxer=None, tile=True):
+def get_stream_for_mix(pipeline=None, videomix=None, videoMixer_pad=None, audiomix=None, audioMixer_pad=None, rtmpsrc=None):
     """Get required param to create a bin."""
-    if not rtmpsrc or not pipeline or not mixer_pad or not flvmuxer:
+    if not rtmpsrc or not pipeline or not videoMixer_pad or not audiomix:
         raise Exception('Mandotarty fields are missing')
-    bin = avbin(pipeline, mixerelement, mixer_pad, rtmpsrc, flvmuxer, tile)
-    custom_bin, pad, vidsinkpad, audqueuesrc, audioelement = bin.get_ghost_pad()
-    return custom_bin, pad, vidsinkpad, audqueuesrc, audioelement
+    bin = avbin(pipeline, videomix, videoMixer_pad, audiomix, audioMixer_pad, rtmpsrc)
+    custom_bin, pad, vidsinkpad, audqueuesrc, audioelement, vidcaps = bin.get_ghost_pad()
+    return custom_bin, pad, vidsinkpad, audqueuesrc, audioelement, vidcaps
