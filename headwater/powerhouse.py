@@ -89,9 +89,14 @@ class powerhouse(Thread):
         self.x264enc.set_property("key-int-max", 75)
 
         self.flvmux.set_property("streamable", True)
+<<<<<<< HEAD
         # self.flvmux.connect('pad-added', self.on_pad_added_muxer)
         # gself.rtmpsink.set_property("location", "rtmp://172.18.5.221/onestream/shishir")
         self.rtmpsink.set_property("location", self.rtmpdst)
+=======
+        #self.flvmux.connect('pad-added', self.on_pad_added_muxer)
+        self.rtmpsink.set_property("location", "rtmp://172.18.5.221/onestream/shishir")
+>>>>>>> dce5e2c60e5de5f2a7bf4a5e9f7984c60a169d86
 
         self.pipeline.add(self.videomix)
         self.pipeline.add(self.audiomix)
